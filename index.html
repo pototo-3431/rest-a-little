@@ -1,0 +1,11 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>休息一下</title></head><body><p id="loading" role="status">正在打开旅店…</p><script>
+(async()=>{
+  const response=await fetch('./game.bin');
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  const stream=response.body.pipeThrough(new DecompressionStream('gzip'));
+  const html=await new Response(stream).text();
+  document.open();
+  document.write(html);
+  document.close();
+})().catch(error=>{console.error(error);document.getElementById('loading').textContent='游戏加载失败，请刷新或更新手机浏览器后重试。';});
+</script></body></html>
