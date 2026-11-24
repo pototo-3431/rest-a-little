@@ -20,6 +20,7 @@ progress::-webkit-progress-bar{background:#e9dcc1}
 progress::-webkit-progress-value{background:#65794d;border-radius:7px}
 progress::-moz-progress-bar{background:#65794d;border-radius:7px}
 .status{display:flex;justify-content:space-between;gap:12px;margin:10px 0 0;font-size:14px;color:#624e38;text-align:left}
+.download-detail{min-height:1.5em;margin:8px 0 0;font-size:12px;line-height:1.5;color:#7c694f}
 button{margin-top:16px;padding:7px 18px;border:1px solid #64734f;border-radius:6px;background:#65794d;color:#fff9ea;font:inherit;cursor:pointer}
 </style>
 </head>
@@ -31,6 +32,7 @@ button{margin-top:16px;padding:7px 18px;border:1px solid #64734f;border-radius:6
   <progress id="progress" aria-label="试玩资源下载进度" max="100" value="0"></progress>
 </div>
 <p class="status"><span id="status" role="status">主厨正在假装一切都在掌握之中……</span><span id="percent" aria-hidden="true">0%</span></p>
+<p id="download-detail" class="download-detail" aria-live="polite"></p>
 <button id="retry" type="button" hidden>重新加载</button>
 </section>
 <script>
@@ -46,19 +48,74 @@ function updateProgress(value){
   percent.textContent=value+'%';
   course.style.setProperty('--runner-progress',value+'%');
 }
+const chunks=[{"url":"game-270d8ea55054-0.bin","bytes":1048576},{"url":"game-270d8ea55054-1.bin","bytes":1048576},{"url":"game-270d8ea55054-2.bin","bytes":1048576},{"url":"game-270d8ea55054-3.bin","bytes":1048576},{"url":"game-270d8ea55054-4.bin","bytes":1048576},{"url":"game-270d8ea55054-5.bin","bytes":1048576},{"url":"game-270d8ea55054-6.bin","bytes":1048576},{"url":"game-270d8ea55054-7.bin","bytes":1048576},{"url":"game-270d8ea55054-8.bin","bytes":1048576},{"url":"game-270d8ea55054-9.bin","bytes":1048576},{"url":"game-270d8ea55054-10.bin","bytes":1048576},{"url":"game-270d8ea55054-11.bin","bytes":1048576},{"url":"game-270d8ea55054-12.bin","bytes":1048576},{"url":"game-270d8ea55054-13.bin","bytes":375617}];
+const totalBytes=chunks.reduce((sum,chunk)=>sum+chunk.bytes,0);
+const loaded=chunks.map(()=>0);
+const detail=document.getElementById('download-detail');
+const controller=new AbortController();
+let nextChunk=0,failed=false,downloadStarted=0,updateTimer=0;
+const received=()=>loaded.reduce((sum,bytes)=>sum+bytes,0);
+function showTransfer(){
+  const bytes=received();
+  updateProgress(Math.min(99,Math.floor(bytes*100/totalBytes)));
+  const seconds=Math.max(1,(performance.now()-downloadStarted)/1000);
+  const speed=bytes/seconds;
+  const rate=speed>=1024*1024?(speed/1024/1024).toFixed(1)+' MB/s':Math.round(speed/1024)+' KB/s';
+  detail.textContent=(bytes/1024/1024).toFixed(1)+' / '+(totalBytes/1024/1024).toFixed(1)+' MB · '+rate;
+}
+async function downloadChunk(index){
+  const chunk=chunks[index];
+  for(let attempt=0;attempt<3;attempt++){
+    if(controller.signal.aborted)throw new Error('cancelled');
+    const request=new AbortController();
+    const cancel=()=>request.abort();
+    controller.signal.addEventListener('abort',cancel,{once:true});
+    let watchdog;
+    const resetWatchdog=()=>{
+      clearTimeout(watchdog);
+      watchdog=setTimeout(()=>request.abort(),20000);
+    };
+    try{
+      loaded[index]=0;resetWatchdog();
+      const response=await fetch('./'+chunk.url,{signal:request.signal});
+      if(!response.ok||!response.body)throw new Error('HTTP '+response.status);
+      const reader=response.body.getReader(),pieces=[];
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        resetWatchdog();pieces.push(value);loaded[index]+=value.byteLength;
+      }
+      if(loaded[index]!==chunk.bytes)throw new Error('Incomplete download');
+      return new Blob(pieces);
+    }catch(error){
+      loaded[index]=0;
+      if(attempt===2||controller.signal.aborted)throw error;
+      detail.textContent='连接较慢，正在重新连接…';
+    }finally{
+      clearTimeout(watchdog);
+      controller.signal.removeEventListener('abort',cancel);
+    }
+  }
+}
 async function loadGame(){
-  const response=await fetch('./game.bin?v=892ba0e2f731');
-  if(!response.ok||!response.body)throw new Error('HTTP '+response.status);
-  let received=0;
-  const track=new TransformStream({transform(chunk,controller){
-    received+=chunk.byteLength;
-    const value=Math.min(99,Math.floor(received*100/22636874));
-    updateProgress(value);
-    controller.enqueue(chunk);
-  },flush(){
-    updateProgress(100);
-  }});
-  const stream=response.body.pipeThrough(track).pipeThrough(new DecompressionStream('gzip'));
+  if(!globalThis.DecompressionStream){
+    throw new Error('BROWSER_TOO_OLD');
+  }
+  downloadStarted=performance.now();
+  updateTimer=setInterval(showTransfer,300);
+  const parts=new Array(chunks.length);
+  async function worker(){
+    while(nextChunk<chunks.length&&!failed){
+      const index=nextChunk++;
+      try{parts[index]=await downloadChunk(index);}
+      catch(error){failed=true;controller.abort();throw error;}
+    }
+  }
+  await Promise.all(Array.from({length:3},worker));
+  clearInterval(updateTimer);
+  updateProgress(100);
+  detail.textContent='下载完成，正在准备旅店…';
+  const stream=new Blob(parts).stream().pipeThrough(new DecompressionStream('gzip'));
   const html=await new Response(stream).text();
   document.open();
   document.write(html);
@@ -66,7 +123,10 @@ async function loadGame(){
 }
 loadGame().catch(error=>{
   console.error(error);
-  status.textContent='加载失败，请重试。';
+  clearInterval(updateTimer);
+  controller.abort();
+  status.textContent='加载暂时中断。';
+  detail.textContent=error.message==='BROWSER_TOO_OLD'?'请更新浏览器后重新打开。':'连接超时或下载失败，点下方重试。';
   course.dataset.failed='';
   retry.hidden=false;
 });
