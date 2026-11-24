@@ -48,7 +48,7 @@ function updateProgress(value){
   percent.textContent=value+'%';
   course.style.setProperty('--runner-progress',value+'%');
 }
-const chunks=[{"url":"game-270d8ea55054-0.bin","bytes":1048576},{"url":"game-270d8ea55054-1.bin","bytes":1048576},{"url":"game-270d8ea55054-2.bin","bytes":1048576},{"url":"game-270d8ea55054-3.bin","bytes":1048576},{"url":"game-270d8ea55054-4.bin","bytes":1048576},{"url":"game-270d8ea55054-5.bin","bytes":1048576},{"url":"game-270d8ea55054-6.bin","bytes":1048576},{"url":"game-270d8ea55054-7.bin","bytes":1048576},{"url":"game-270d8ea55054-8.bin","bytes":1048576},{"url":"game-270d8ea55054-9.bin","bytes":1048576},{"url":"game-270d8ea55054-10.bin","bytes":1048576},{"url":"game-270d8ea55054-11.bin","bytes":1048576},{"url":"game-270d8ea55054-12.bin","bytes":1048576},{"url":"game-270d8ea55054-13.bin","bytes":375617}];
+const chunks=[{"url":"game-ad93ccd171b5-0.bin","bytes":1048576},{"url":"game-ad93ccd171b5-1.bin","bytes":1048576},{"url":"game-ad93ccd171b5-2.bin","bytes":1048576},{"url":"game-ad93ccd171b5-3.bin","bytes":1048576},{"url":"game-ad93ccd171b5-4.bin","bytes":1048576},{"url":"game-ad93ccd171b5-5.bin","bytes":1048576},{"url":"game-ad93ccd171b5-6.bin","bytes":1048576},{"url":"game-ad93ccd171b5-7.bin","bytes":1048576},{"url":"game-ad93ccd171b5-8.bin","bytes":1048576},{"url":"game-ad93ccd171b5-9.bin","bytes":1048576},{"url":"game-ad93ccd171b5-10.bin","bytes":1048576},{"url":"game-ad93ccd171b5-11.bin","bytes":1048576},{"url":"game-ad93ccd171b5-12.bin","bytes":1048576},{"url":"game-ad93ccd171b5-13.bin","bytes":1048576},{"url":"game-ad93ccd171b5-14.bin","bytes":361554}];
 const totalBytes=chunks.reduce((sum,chunk)=>sum+chunk.bytes,0);
 const loaded=chunks.map(()=>0);
 const detail=document.getElementById('download-detail');
